@@ -1612,11 +1612,11 @@ class GLBPointCloudDensityFilter:
             },
             "optional": {
                 "density_threshold": ("FLOAT", {
-                    "default": 0.3, "min": 0.01, "max": 0.99, "step": 0.01,
+                    "default": 0.99, "min": 0.01, "max": 0.99, "step": 0.01,
                     "tooltip": "密度阈值：保留密度高于此比例的点。0.3=保留密度前70%的点；0.5=保留密度前50%的点。值越大删除越多稀疏点"
                 }),
                 "neighborhood_radius": ("FLOAT", {
-                    "default": 0.1, "min": 0.01, "max": 1.0, "step": 0.01,
+                    "default": 0.3, "min": 0.01, "max": 1.0, "step": 0.01,
                     "tooltip": "邻域半径：计算密度时的搜索半径。较小值=精细密度检测；较大值=平滑密度检测。建议0.05-0.2"
                 }),
                 "min_neighbors": ("INT", {
@@ -1895,18 +1895,47 @@ class GLBPointCloudDensityFilter:
         # 计算每个点的局部密度
         densities = np.zeros(n_points)
         
-        if kdtree is not None:
-            # 高效的KDTree搜索
-            for i in range(n_points):
-                # 查找邻域内的点
-                neighbor_indices = kdtree.query_ball_point(vertices[i], neighborhood_radius)
-                densities[i] = len(neighbor_indices) - 1  # 减去自己
+        BIG_POINT_THRESHOLD = 200000  # 20万点以上使用体素统计
+        if n_points > BIG_POINT_THRESHOLD:
+            # ------------------------------------------------------------------
+            # 大规模点云：使用体素统计近似密度 (O(N) 内存, 非递归, 无KDTree)
+            # ------------------------------------------------------------------
+            start_t = time.time()
+            bbox_min = vertices.min(axis=0)
+            voxel_size = neighborhood_radius  # 体素边长与邻域半径一致
+            voxel_indices = np.floor((vertices - bbox_min) / voxel_size).astype(np.int32)
+            # 使用结构化dtype便于unique
+            voxel_keys = voxel_indices.view([('x', np.int32), ('y', np.int32), ('z', np.int32)]).reshape(-1)
+            unique_keys, inverse_indices, counts = np.unique(voxel_keys, return_inverse=True, return_counts=True)
+            densities = counts[inverse_indices] - 1  # 同体素内点数近似邻居数
+            elapsed = time.time() - start_t
+            processing_log.append(f"体素密度计算完成，用时 {elapsed:.2f}s (体素数={len(unique_keys):,})")
+        elif kdtree is not None:
+            # -----------------------------
+            # 使用KDTree批量并行查询提高速度
+            # -----------------------------
+            start_t = time.time()
+            neighbors_list = kdtree.query_ball_point(vertices, neighborhood_radius, workers=-1)
+            densities = np.fromiter((len(idx) - 1 for idx in neighbors_list), dtype=np.int32, count=n_points)
+            elapsed = time.time() - start_t
+            processing_log.append(f"KDTree密度计算完成，用时 {elapsed:.2f}s (并行查询)")
         else:
-            # 简化的距离计算（适用于小点云）
-            for i in range(n_points):
-                distances = np.linalg.norm(vertices - vertices[i], axis=1)
-                neighbor_count = np.sum(distances <= neighborhood_radius) - 1  # 减去自己
-                densities[i] = neighbor_count
+            # -----------------------------
+            # 回退到简化的距离计算（仅在小点云或无SciPy时使用）
+            # -----------------------------
+            start_t = time.time()
+            # 采用向量化广播一次性计算距离矩阵（O(N^2) 内存消耗大，仅限<50k点）
+            if n_points < 50000:
+                dist_matrix = np.linalg.norm(vertices[None, :, :] - vertices[:, None, :], axis=2)
+                densities = (dist_matrix <= neighborhood_radius).sum(axis=1) - 1  # 排除自身
+            else:
+                # 大点云时退化为分批循环
+                for i in range(n_points):
+                    distances = np.linalg.norm(vertices - vertices[i], axis=1)
+                    neighbor_count = np.sum(distances <= neighborhood_radius) - 1
+                    densities[i] = neighbor_count
+            elapsed = time.time() - start_t
+            processing_log.append(f"向量化密度计算完成，用时 {elapsed:.2f}s")
         
         processing_log.append(f"密度统计: 最小={densities.min():.1f}, 最大={densities.max():.1f}, 平均={densities.mean():.1f}")
         
