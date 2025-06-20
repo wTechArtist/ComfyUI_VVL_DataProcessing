@@ -1,0 +1,17 @@
+# ComfyUI VVL Data Processing 依赖库
+
+# 点云处理依赖
+trimesh>=3.15.0
+# scipy>=1.9.0  # 可选：提升密度过滤性能
+
+# 遮罩处理依赖  
+opencv-python>=4.5.0
+
+# 基础科学计算库
+numpy>=1.20.0
+
+# JSON处理（Python内置）
+# json - 内置库
+
+# 日志记录（Python内置）
+# logging - 内置库 

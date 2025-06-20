@@ -1,0 +1,11 @@
+ComfyUI VVL Data Processing Plugin
+Version: 1.0.0
+Release Date: 2024-06-20
+Author: VVL Team
+
+Features:
+- GLB Point Cloud Processing (4 nodes)
+- JSON Data Processing (2 nodes)  
+- Mask Coordinate Processing (1 node)
+
+Total Nodes: 7 
