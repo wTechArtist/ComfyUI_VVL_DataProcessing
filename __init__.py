@@ -3,12 +3,7 @@ ComfyUI VVL Data Processing Plugin
 数据处理工具集插件，包含点云处理、JSON合并、遮罩坐标生成等功能
 """
 
-from .glb_point_cloud_processor import (
-    GLBPointCloudProcessor, 
-    GLBPointCloudBounds, 
-    GLBPointCloudOriginAdjuster, 
-    GLBPointCloudDensityFilter
-)
+from .glb_point_cloud_processor import *
 from .json_merger import JSONMerger, UESceneGenerator
 from .mask_to_coordinates import MaskToCoordinates
 
@@ -18,6 +13,7 @@ NODE_CLASS_MAPPINGS = {
     "GLBPointCloudBounds": GLBPointCloudBounds,
     "GLBPointCloudOriginAdjuster": GLBPointCloudOriginAdjuster,
     "GLBPointCloudDensityFilter": GLBPointCloudDensityFilter,
+    "GLBPointCloudRotationCorrector": GLBPointCloudRotationCorrector,
     "JSONMerger": JSONMerger,
     "UESceneGenerator": UESceneGenerator,
     "MaskToCoordinates": MaskToCoordinates,
@@ -29,6 +25,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GLBPointCloudBounds": "VVL GLB 点云包围盒计算",
     "GLBPointCloudOriginAdjuster": "VVL GLB 点云原点调整",
     "GLBPointCloudDensityFilter": "VVL GLB 点云密度过滤",
+    "GLBPointCloudRotationCorrector": "VVL GLB 点云旋转校正",
     "JSONMerger": "VVL JSON数据合并器",
     "UESceneGenerator": "VVL UE场景生成器",
     "MaskToCoordinates": "VVL Mask转坐标",
