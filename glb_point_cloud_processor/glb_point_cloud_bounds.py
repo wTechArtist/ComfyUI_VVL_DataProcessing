@@ -17,9 +17,9 @@ class GLBPointCloudBounds:
                     "default": "axis_aligned",
                     "tooltip": "包围盒类型：axis_aligned=轴对齐包围盒(AABB)，计算快速；oriented=有向包围盒(OBB)，体积最小"
                 }),
-                "units": (["meters", "centimeters", "millimeters"], {
-                    "default": "meters", 
-                    "tooltip": "输出单位：指定包围盒尺寸的输出单位"
+                "units": ([1, 100, 1000, 10000, 100000], {
+                    "default": 1, 
+                    "tooltip": "输出单位倍数：1=米，100=厘米，1000=毫米，10000=0.1毫米，100000=微米"
                 }),
                 "add_bounding_box_visualization": ("BOOLEAN", {
                     "default": True,
@@ -63,7 +63,7 @@ class GLBPointCloudBounds:
     def calculate_bounds_and_visualize(self,
                         glb_file_path: str,
                         bounding_box_type: str = "axis_aligned",
-                        units: str = "meters",
+                        units: int = 1,
                         add_bounding_box_visualization: bool = True,
                         add_coordinate_axes: bool = True,
                         wireframe_density: int = 50,
@@ -193,8 +193,7 @@ class GLBPointCloudBounds:
 
             
             # 应用单位转换
-            unit_scale = {"meters": 1.0, "centimeters": 100.0, "millimeters": 1000.0}
-            scale_factor = unit_scale.get(units, 1.0)
+            scale_factor = float(units)
             
             scaled_extents = extents * scale_factor
             
@@ -208,11 +207,11 @@ class GLBPointCloudBounds:
 
             
             processing_log.append(f"")
-            processing_log.append(f"输出结果 (单位: {units}):")
+            processing_log.append(f"输出结果 (单位倍数: {units}):")
             processing_log.append(f"  Scale数组: [{scale_array[0]:.6f}, {scale_array[1]:.6f}, {scale_array[2]:.6f}]")
-            processing_log.append(f"  长度(X): {scale_array[0]:.6f} {units}")
-            processing_log.append(f"  宽度(Y): {scale_array[1]:.6f} {units}")
-            processing_log.append(f"  高度(Z): {scale_array[2]:.6f} {units}")
+            processing_log.append(f"  长度(X): {scale_array[0]:.6f} (x{units})")
+            processing_log.append(f"  宽度(Y): {scale_array[1]:.6f} (x{units})")
+            processing_log.append(f"  高度(Z): {scale_array[2]:.6f} (x{units})")
             
             # 生成带可视化的点云文件（原模型数据不变，仅添加预览）
             output_glb_path = ""

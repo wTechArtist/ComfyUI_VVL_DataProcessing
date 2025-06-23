@@ -18,9 +18,9 @@ class GLBPointCloudOriginAdjuster:
                     "default": "bottom_center",
                     "tooltip": "原点模式：center=点云几何中心；bottom_center=点云底部中心(脚底)"
                 }),
-                "output_units": (["meters", "centimeters", "millimeters"], {
-                    "default": "centimeters",
-                    "tooltip": "输出单位：变换信息的输出单位"
+                "output_units": ([1, 100, 1000, 10000, 100000], {
+                    "default": 100,
+                    "tooltip": "输出单位倍数：1=米，100=厘米，1000=毫米，10000=0.1毫米，100000=微米"
                 }),
                 "add_coordinate_axes": ("BOOLEAN", {
                     "default": True,
@@ -56,7 +56,7 @@ class GLBPointCloudOriginAdjuster:
     def adjust_origin(self,
                      glb_file_path: str,
                      origin_mode: str = "bottom_center",
-                     output_units: str = "centimeters",
+                     output_units: int = 100,
                      add_coordinate_axes: bool = False,
                      wireframe_density: int = 100,
                      output_filename: str = "adjusted_pointcloud"):
@@ -284,8 +284,7 @@ class GLBPointCloudOriginAdjuster:
                 return ("", "")
             
             # 应用单位转换
-            unit_scale = {"meters": 1.0, "centimeters": 100.0, "millimeters": 1000.0}
-            scale_factor = unit_scale.get(output_units, 1.0)
+            scale_factor = float(output_units)
             
             # 生成变换信息（UE格式）
             final_position = new_origin * scale_factor  # 相对于原始坐标系的位置
@@ -295,8 +294,8 @@ class GLBPointCloudOriginAdjuster:
             }
             
             processing_log.append("")
-            processing_log.append(f"变换信息 (单位: {output_units}):")
-            processing_log.append(f"  Position: [{transform_info['position'][0]:.2f}, {transform_info['position'][1]:.2f}, {transform_info['position'][2]:.2f}]")
+            processing_log.append(f"变换信息 (单位倍数: {output_units}):")
+            processing_log.append(f"  Position: [{transform_info['position'][0]:.2f}, {transform_info['position'][1]:.2f}, {transform_info['position'][2]:.2f}] (x{output_units})")
             processing_log.append("原点调整预览生成完成!")
             
             return (

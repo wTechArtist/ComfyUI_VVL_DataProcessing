@@ -13,11 +13,11 @@ class GLBPointCloudRotator:
                     "tooltip": "GLB点云文件路径：输入需要旋转的GLB格式点云文件"
                 }),
                 "rotation_axis": (["X", "Y", "Z"], {
-                    "default": "X",
+                    "default": "Y",
                     "tooltip": "旋转轴：选择围绕哪个轴进行旋转。X=绕X轴旋转(俯仰)；Y=绕Y轴旋转(偏航)；Z=绕Z轴旋转(翻滚)"
                 }),
                 "rotation_angle": ("FLOAT", {
-                    "default": 90.0 "min": -360.0, "max": 360.0, "step": 0.1,
+                    "default": 90.0, "min": -360.0, "max": 360.0, "step": 0.1,
                     "tooltip": "旋转角度：旋转的角度，单位为度。正值为逆时针旋转，负值为顺时针旋转"
                 }),
                 "output_filename": ("STRING", {
