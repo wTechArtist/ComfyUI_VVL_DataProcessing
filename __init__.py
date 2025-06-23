@@ -9,6 +9,7 @@ from .glb_point_cloud_processor.glb_point_cloud_origin_adjuster import *
 from .glb_point_cloud_processor.glb_point_cloud_density_filter import *
 from .glb_point_cloud_processor.glb_point_cloud_rotation_corrector import *
 from .glb_point_cloud_processor.glb_point_cloud_transform_applier import *
+from .glb_point_cloud_processor.glb_point_cloud_rotator import *
 from .json_merger import JSONMerger, UESceneGenerator
 from .mask_to_coordinates import MaskToCoordinates
 
@@ -20,6 +21,7 @@ NODE_CLASS_MAPPINGS = {
     "GLBPointCloudDensityFilter": GLBPointCloudDensityFilter,
     "GLBPointCloudRotationCorrector": GLBPointCloudRotationCorrector,
     "GLBPointCloudTransformApplier": GLBPointCloudTransformApplier,
+    "GLBPointCloudRotator": GLBPointCloudRotator,
     "JSONMerger": JSONMerger,
     "UESceneGenerator": UESceneGenerator,
     "MaskToCoordinates": MaskToCoordinates,
@@ -33,6 +35,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GLBPointCloudDensityFilter": "VVL GLB 点云密度过滤",
     "GLBPointCloudRotationCorrector": "VVL GLB 点云旋转校正",
     "GLBPointCloudTransformApplier": "VVL GLB 点云变换应用",
+    "GLBPointCloudRotator": "VVL GLB 点云旋转器",
     "JSONMerger": "VVL JSON数据合并器",
     "UESceneGenerator": "VVL UE场景生成器",
     "MaskToCoordinates": "VVL Mask转坐标",
