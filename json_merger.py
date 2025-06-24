@@ -248,8 +248,12 @@ class UESceneGenerator:
                     "tooltip": "位置轴向：选择对物体position进行缩放的轴向。XYZ=全轴，X/Y/Z=单轴，XY/XZ/YZ=双轴"
                 }),
                 "position_multiplier": ("FLOAT", {
-                    "default": 0.0, "min": 0.001, "max": 1000.0, "step": 0.1,
+                    "default": 0.0, "min": 0.0, "max": 1000.0, "step": 0.1,
                     "tooltip": "位置倍数：对选定轴向的position值进行缩放的倍数，用于调整物体位置到合适的UE单位。注意：这是一个数值参数，不要连接数组输入！"
+                }),
+                "recenter_scene": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "是否自动将所有物体整体平移，使场景中心(质心)位于原点(0,0,0)。开启后，不影响物体间相对位置和大小。"
                 }),
             }
         }
@@ -276,7 +280,8 @@ class UESceneGenerator:
                          scale_axis: str = "XYZ",
                          scale_multiplier = 1.0,
                          position_axis: str = "XYZ",
-                         position_multiplier = 1.0):
+                         position_multiplier = 0.0,
+                         recenter_scene: bool = False):
         """
         将合并的JSON数据转换为UE场景配置格式
         """
@@ -302,16 +307,20 @@ class UESceneGenerator:
                 scale_multiplier = 1.0
                 
             if isinstance(position_multiplier, str):
-                processing_log.append(f"警告: position_multiplier参数类型错误(收到字符串'{position_multiplier}')，使用默认值1.0")
-                position_multiplier = 1.0
+                processing_log.append(f"警告: position_multiplier参数类型错误(收到字符串'{position_multiplier}')，使用默认值0.0")
+                position_multiplier = 0.0
             elif not isinstance(position_multiplier, (int, float)):
-                processing_log.append(f"警告: position_multiplier参数类型错误(收到{type(position_multiplier).__name__})，使用默认值1.0")
-                position_multiplier = 1.0
+                processing_log.append(f"警告: position_multiplier参数类型错误(收到{type(position_multiplier).__name__})，使用默认值0.0")
+                position_multiplier = 0.0
+            
+            if not isinstance(recenter_scene, bool):
+                processing_log.append(f"警告: recenter_scene参数类型错误(收到{type(recenter_scene).__name__})，使用默认值False")
+                recenter_scene = False
             
             # 确保参数在合理范围内
             camera_fov = max(1.0, min(179.0, float(camera_fov)))
             scale_multiplier = max(0.001, min(1000.0, float(scale_multiplier)))
-            position_multiplier = max(0.001, min(1000.0, float(position_multiplier)))
+            position_multiplier = max(0.0, min(1000.0, float(position_multiplier)))
             
             # 验证轴向参数
             valid_axes = ["XYZ", "X", "Y", "Z", "XY", "XZ", "YZ"]
@@ -330,9 +339,10 @@ class UESceneGenerator:
             processing_log.append(f"参数验证失败: {str(e)}，使用默认值")
             camera_fov = 58.53
             scale_multiplier = 1.0
-            position_multiplier = 1.0
+            position_multiplier = 0.0
             scale_axis = "XYZ"
             position_axis = "XYZ"
+            recenter_scene = False
         
         try:
             # 处理输入的合并JSON数据（可能是字符串或直接的数据）
@@ -448,6 +458,24 @@ class UESceneGenerator:
                 return (json.dumps({"error": error_msg}, indent=2),)
             
             processing_log.append(f"成功处理 {objects_processed} 个物体")
+            
+            # -------------------------------------------------
+            # 场景整体居中: 将所有物体质心移动到原点
+            # -------------------------------------------------
+            if recenter_scene and objects_processed > 0:
+                # 计算质心
+                sum_x = sum(o["position"][0] for o in ue_scene["objects"])
+                sum_y = sum(o["position"][1] for o in ue_scene["objects"])
+                sum_z = sum(o["position"][2] for o in ue_scene["objects"])
+                centroid = [sum_x / objects_processed, sum_y / objects_processed, sum_z / objects_processed]
+                processing_log.append(f"场景质心: {centroid}")
+                # 将物体位置减去质心
+                for o in ue_scene["objects"]:
+                    original_pos = o["position"].copy()
+                    o["position"] = [original_pos[0] - centroid[0],
+                                       original_pos[1] - centroid[1],
+                                       original_pos[2] - centroid[2]]
+                processing_log.append("已将所有物体整体平移，使质心位于原点")
             
             # 生成最终的UE场景JSON
             ue_scene_json = json.dumps(ue_scene, indent=2, ensure_ascii=False)
