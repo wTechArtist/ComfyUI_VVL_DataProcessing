@@ -235,9 +235,21 @@ class UESceneGenerator:
                     "default": "[0, 0, 0]",
                     "tooltip": "默认物体旋转：当输入数据中没有rotation字段时使用的默认旋转值 [Pitch, Yaw, Roll]"
                 }),
+                "scale_axis": (["XYZ", "X", "Y", "Z", "XY", "XZ", "YZ"], {
+                    "default": "XYZ",
+                    "tooltip": "缩放轴向：选择对物体scale进行缩放的轴向。XYZ=全轴，X/Y/Z=单轴，XY/XZ/YZ=双轴"
+                }),
                 "scale_multiplier": ("FLOAT", {
                     "default": 1.0, "min": 0.001, "max": 1000.0, "step": 0.1,
-                    "tooltip": "缩放倍数：对所有scale值进行统一缩放的倍数，用于调整物体大小到合适的UE单位。注意：这是一个数值参数，不要连接数组输入！"
+                    "tooltip": "缩放倍数：对选定轴向的scale值进行缩放的倍数，用于调整物体大小到合适的UE单位。注意：这是一个数值参数，不要连接数组输入！"
+                }),
+                "position_axis": (["XYZ", "X", "Y", "Z", "XY", "XZ", "YZ"], {
+                    "default": "Z",
+                    "tooltip": "位置轴向：选择对物体position进行缩放的轴向。XYZ=全轴，X/Y/Z=单轴，XY/XZ/YZ=双轴"
+                }),
+                "position_multiplier": ("FLOAT", {
+                    "default": 0.0, "min": 0.001, "max": 1000.0, "step": 0.1,
+                    "tooltip": "位置倍数：对选定轴向的position值进行缩放的倍数，用于调整物体位置到合适的UE单位。注意：这是一个数值参数，不要连接数组输入！"
                 }),
             }
         }
@@ -261,7 +273,10 @@ class UESceneGenerator:
                          camera_rotation: str = "[-12, 0, 0]",
                          camera_fov = 58.53,
                          default_object_rotation: str = "[0, 0, 0]",
-                         scale_multiplier = 1.0):
+                         scale_axis: str = "XYZ",
+                         scale_multiplier = 1.0,
+                         position_axis: str = "XYZ",
+                         position_multiplier = 1.0):
         """
         将合并的JSON数据转换为UE场景配置格式
         """
@@ -285,17 +300,39 @@ class UESceneGenerator:
             elif not isinstance(scale_multiplier, (int, float)):
                 processing_log.append(f"警告: scale_multiplier参数类型错误(收到{type(scale_multiplier).__name__})，使用默认值1.0")
                 scale_multiplier = 1.0
+                
+            if isinstance(position_multiplier, str):
+                processing_log.append(f"警告: position_multiplier参数类型错误(收到字符串'{position_multiplier}')，使用默认值1.0")
+                position_multiplier = 1.0
+            elif not isinstance(position_multiplier, (int, float)):
+                processing_log.append(f"警告: position_multiplier参数类型错误(收到{type(position_multiplier).__name__})，使用默认值1.0")
+                position_multiplier = 1.0
             
             # 确保参数在合理范围内
             camera_fov = max(1.0, min(179.0, float(camera_fov)))
             scale_multiplier = max(0.001, min(1000.0, float(scale_multiplier)))
+            position_multiplier = max(0.001, min(1000.0, float(position_multiplier)))
             
-            processing_log.append(f"参数验证完成: camera_fov={camera_fov}, scale_multiplier={scale_multiplier}")
+            # 验证轴向参数
+            valid_axes = ["XYZ", "X", "Y", "Z", "XY", "XZ", "YZ"]
+            if scale_axis not in valid_axes:
+                processing_log.append(f"警告: scale_axis参数无效('{scale_axis}')，使用默认值'XYZ'")
+                scale_axis = "XYZ"
+            if position_axis not in valid_axes:
+                processing_log.append(f"警告: position_axis参数无效('{position_axis}')，使用默认值'XYZ'")
+                position_axis = "XYZ"
+            
+            processing_log.append(f"参数验证完成: camera_fov={camera_fov}")
+            processing_log.append(f"缩放设置: {scale_axis}轴, 倍数={scale_multiplier}")
+            processing_log.append(f"位置设置: {position_axis}轴, 倍数={position_multiplier}")
             
         except Exception as e:
             processing_log.append(f"参数验证失败: {str(e)}，使用默认值")
             camera_fov = 58.53
             scale_multiplier = 1.0
+            position_multiplier = 1.0
+            scale_axis = "XYZ"
+            position_axis = "XYZ"
         
         try:
             # 处理输入的合并JSON数据（可能是字符串或直接的数据）
@@ -376,7 +413,8 @@ class UESceneGenerator:
                 if isinstance(data_item, dict):
                     # 单个物体字典
                     ue_object = self._convert_to_ue_object(
-                        data_item, default_rot, scale_multiplier, processing_log
+                        data_item, default_rot, scale_axis, scale_multiplier, 
+                        position_axis, position_multiplier, processing_log
                     )
                     if ue_object:
                         ue_scene["objects"].append(ue_object)
@@ -428,7 +466,9 @@ class UESceneGenerator:
             return (json.dumps({"error": error_msg}, indent=2),)
     
     def _convert_to_ue_object(self, obj_data: dict, default_rotation: list, 
-                             scale_multiplier: float, processing_log: list) -> dict:
+                             scale_axis: str, scale_multiplier: float,
+                             position_axis: str, position_multiplier: float, 
+                             processing_log: list) -> dict:
         """
         将单个对象数据转换为UE物体格式
         """
@@ -454,10 +494,17 @@ class UESceneGenerator:
                 processing_log.append(f"物体 '{name}' 缩放格式错误，使用默认值 [1, 1, 1]")
                 scale = [1, 1, 1]
             
-            # 应用缩放倍数
+            # 应用位置倍数（按轴向）
+            if position_multiplier != 1.0:
+                original_pos = position.copy()
+                position = self._apply_axis_multiplier(position, position_axis, position_multiplier)
+                processing_log.append(f"物体 '{name}' 位置{position_axis}轴应用倍数{position_multiplier}: {original_pos} -> {position}")
+            
+            # 应用缩放倍数（按轴向）
             if scale_multiplier != 1.0:
-                scale = [s * scale_multiplier for s in scale]
-                processing_log.append(f"物体 '{name}' 应用缩放倍数 {scale_multiplier}")
+                original_scale = scale.copy()
+                scale = self._apply_axis_multiplier(scale, scale_axis, scale_multiplier)
+                processing_log.append(f"物体 '{name}' 缩放{scale_axis}轴应用倍数{scale_multiplier}: {original_scale} -> {scale}")
             
             # 创建UE物体
             ue_object = {
@@ -474,6 +521,47 @@ class UESceneGenerator:
         except Exception as e:
             processing_log.append(f"转换物体失败: {str(e)}")
             return None
+    
+    def _apply_axis_multiplier(self, values: list, axis: str, multiplier: float) -> list:
+        """
+        根据轴向选择对指定轴应用倍数
+        
+        Args:
+            values: 三维数值列表 [X, Y, Z]
+            axis: 轴向选择 ("XYZ", "X", "Y", "Z", "XY", "XZ", "YZ")
+            multiplier: 倍数
+            
+        Returns:
+            应用倍数后的数值列表
+        """
+        result = values.copy()
+        
+        if axis == "XYZ":
+            # 全轴缩放
+            result = [v * multiplier for v in result]
+        elif axis == "X":
+            # 只缩放X轴
+            result[0] *= multiplier
+        elif axis == "Y":
+            # 只缩放Y轴
+            result[1] *= multiplier
+        elif axis == "Z":
+            # 只缩放Z轴
+            result[2] *= multiplier
+        elif axis == "XY":
+            # 缩放X和Y轴
+            result[0] *= multiplier
+            result[1] *= multiplier
+        elif axis == "XZ":
+            # 缩放X和Z轴
+            result[0] *= multiplier
+            result[2] *= multiplier
+        elif axis == "YZ":
+            # 缩放Y和Z轴
+            result[1] *= multiplier
+            result[2] *= multiplier
+        
+        return result
 
 
 # -----------------------------------------------------------------------------
