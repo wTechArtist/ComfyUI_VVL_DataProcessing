@@ -1,6 +1,6 @@
 """
 ComfyUI VVL Data Processing Plugin
-数据处理工具集插件，包含点云处理、JSON合并、遮罩坐标生成等功能
+数据处理工具集插件，包含点云处理、JSON合并、遮罩坐标生成、视频处理等功能
 """
 
 from .glb_point_cloud_processor.glb_point_cloud_black_delete import *
@@ -12,6 +12,7 @@ from .glb_point_cloud_processor.glb_point_cloud_transform_applier import *
 from .glb_point_cloud_processor.glb_point_cloud_rotator import *
 from .json_merger import JSONMerger, UESceneGenerator
 from .mask_to_coordinates import MaskToCoordinates
+from .video_processor.save_video import SaveVideo
 
 # 节点类映射
 NODE_CLASS_MAPPINGS = {
@@ -25,6 +26,7 @@ NODE_CLASS_MAPPINGS = {
     "JSONMerger": JSONMerger,
     "UESceneGenerator": UESceneGenerator,
     "MaskToCoordinates": MaskToCoordinates,
+    "VVL_SaveVideo": SaveVideo,
 }
 
 # 节点显示名称映射
@@ -39,9 +41,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "JSONMerger": "VVL JSON数据合并器",
     "UESceneGenerator": "VVL UE场景生成器",
     "MaskToCoordinates": "VVL Mask转坐标",
+    "VVL_SaveVideo": "VVL 视频保存器",
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
 
 # 版本信息
-__version__ = "1.0.0" 
+__version__ = "1.0.0"
