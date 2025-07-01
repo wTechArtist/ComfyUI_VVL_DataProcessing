@@ -255,6 +255,10 @@ class UESceneGenerator:
                     "default": True,
                     "tooltip": "是否自动将所有物体整体平移，使场景中心(质心)位于原点(0,0,0)。开启后，不影响物体间相对位置和大小。"
                 }),
+                "flip_y_axis": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "是否翻转Y轴坐标（Y值取反）以适配UE坐标体系。开启后，所有position的Y值会取反，其他轴不变。"
+                }),
             }
         }
 
@@ -281,7 +285,8 @@ class UESceneGenerator:
                          scale_multiplier = 1.0,
                          position_axis: str = "XYZ",
                          position_multiplier = 0.0,
-                         recenter_scene: bool = False):
+                         recenter_scene: bool = False,
+                         flip_y_axis: bool = True):
         """
         将合并的JSON数据转换为UE场景配置格式
         """
@@ -317,6 +322,10 @@ class UESceneGenerator:
                 processing_log.append(f"警告: recenter_scene参数类型错误(收到{type(recenter_scene).__name__})，使用默认值False")
                 recenter_scene = False
             
+            if not isinstance(flip_y_axis, bool):
+                processing_log.append(f"警告: flip_y_axis参数类型错误(收到{type(flip_y_axis).__name__})，使用默认值True")
+                flip_y_axis = True
+            
             # 确保参数在合理范围内
             camera_fov = max(1.0, min(179.0, float(camera_fov)))
             scale_multiplier = max(0.001, min(1000.0, float(scale_multiplier)))
@@ -334,6 +343,7 @@ class UESceneGenerator:
             processing_log.append(f"参数验证完成: camera_fov={camera_fov}")
             processing_log.append(f"缩放设置: {scale_axis}轴, 倍数={scale_multiplier}")
             processing_log.append(f"位置设置: {position_axis}轴, 倍数={position_multiplier}")
+            processing_log.append(f"坐标系设置: Y轴翻转={'开启' if flip_y_axis else '关闭'}, 场景居中={'开启' if recenter_scene else '关闭'}")
             
         except Exception as e:
             processing_log.append(f"参数验证失败: {str(e)}，使用默认值")
@@ -424,7 +434,7 @@ class UESceneGenerator:
                     # 单个物体字典
                     ue_object = self._convert_to_ue_object(
                         data_item, default_rot, scale_axis, scale_multiplier, 
-                        position_axis, position_multiplier, processing_log
+                        position_axis, position_multiplier, flip_y_axis, processing_log
                     )
                     if ue_object:
                         ue_scene["objects"].append(ue_object)
@@ -469,13 +479,35 @@ class UESceneGenerator:
                 sum_z = sum(o["position"][2] for o in ue_scene["objects"])
                 centroid = [sum_x / objects_processed, sum_y / objects_processed, sum_z / objects_processed]
                 processing_log.append(f"场景质心: {centroid}")
-                # 将物体位置减去质心
-                for o in ue_scene["objects"]:
-                    original_pos = o["position"].copy()
-                    o["position"] = [original_pos[0] - centroid[0],
-                                       original_pos[1] - centroid[1],
-                                       original_pos[2] - centroid[2]]
-                processing_log.append("已将所有物体整体平移，使质心位于原点")
+                
+                # 检查物体位置是否有明显差异（避免所有物体都移动到原点的问题）
+                positions = [o["position"] for o in ue_scene["objects"]]
+                min_x = min(pos[0] for pos in positions)
+                max_x = max(pos[0] for pos in positions)
+                min_y = min(pos[1] for pos in positions)
+                max_y = max(pos[1] for pos in positions)
+                min_z = min(pos[2] for pos in positions)
+                max_z = max(pos[2] for pos in positions)
+                
+                # 计算各轴的范围
+                range_x = max_x - min_x
+                range_y = max_y - min_y
+                range_z = max_z - min_z
+                max_range = max(range_x, range_y, range_z)
+                
+                processing_log.append(f"物体位置范围: X=[{min_x:.3f}, {max_x:.3f}] ({range_x:.3f}), Y=[{min_y:.3f}, {max_y:.3f}] ({range_y:.3f}), Z=[{min_z:.3f}, {max_z:.3f}] ({range_z:.3f})")
+                
+                # 只有当物体位置有明显差异时才进行居中（阈值设为0.01）
+                if max_range > 0.01:
+                    # 将物体位置减去质心
+                    for o in ue_scene["objects"]:
+                        original_pos = o["position"].copy()
+                        o["position"] = [original_pos[0] - centroid[0],
+                                           original_pos[1] - centroid[1],
+                                           original_pos[2] - centroid[2]]
+                    processing_log.append("已将所有物体整体平移，使质心位于原点")
+                else:
+                    processing_log.append("物体位置差异很小，跳过居中操作以避免所有物体重叠在原点")
             
             # 生成最终的UE场景JSON
             ue_scene_json = json.dumps(ue_scene, indent=2, ensure_ascii=False)
@@ -495,8 +527,8 @@ class UESceneGenerator:
     
     def _convert_to_ue_object(self, obj_data: dict, default_rotation: list, 
                              scale_axis: str, scale_multiplier: float,
-                             position_axis: str, position_multiplier: float, 
-                             processing_log: list) -> dict:
+                             position_axis: str, position_multiplier: float,
+                             flip_y_axis: bool, processing_log: list) -> dict:
         """
         将单个对象数据转换为UE物体格式
         """
@@ -533,6 +565,12 @@ class UESceneGenerator:
                 original_scale = scale.copy()
                 scale = self._apply_axis_multiplier(scale, scale_axis, scale_multiplier)
                 processing_log.append(f"物体 '{name}' 缩放{scale_axis}轴应用倍数{scale_multiplier}: {original_scale} -> {scale}")
+            
+            # 翻转Y轴以适配UE坐标体系
+            if flip_y_axis:
+                original_y = position[1]
+                position[1] = -position[1]
+                processing_log.append(f"物体 '{name}' Y轴翻转: {original_y} -> {position[1]}")
             
             # 创建UE物体
             ue_object = {
